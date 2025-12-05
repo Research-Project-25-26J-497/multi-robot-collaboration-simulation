@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Advanced Multi-Robot Collaboration with LiDAR Integration
-Implements the core algorithms from your research proposal
 """
 
 import rclpy
@@ -69,7 +68,7 @@ class AdvancedCollaborationNode(Node):
             }
     
     def run_collaboration_algorithms(self):
-        """Main collaboration loop - implements your research algorithms"""
+        """Main collaboration loop"""
         # 1. Dynamic Task Allocation
         self.dynamic_task_allocation()
         
@@ -88,7 +87,7 @@ class AdvancedCollaborationNode(Node):
         self.log_system_status()
     
     def dynamic_task_allocation(self):
-        """YOUR ALGORITHM: Dynamic task allocation based on robot positions and capabilities"""
+        """Dynamic task allocation based on robot positions and capabilities"""
         idle_robots = [name for name in self.robot_names 
                       if self.robot_data[name]['status'] == 'idle']
         unassigned_goals = [goal for goal in self.exploration_goals 
@@ -96,7 +95,7 @@ class AdvancedCollaborationNode(Node):
         
         for robot_name in idle_robots:
             if unassigned_goals:
-                # Find closest unassigned goal (greedy allocation)
+                # Find closest unassigned goal
                 robot_pos = self.robot_data[robot_name]['position']
                 closest_goal = min(unassigned_goals,
                                  key=lambda goal: self.calculate_distance(robot_pos, goal))
@@ -110,7 +109,7 @@ class AdvancedCollaborationNode(Node):
                 self.get_logger().info(f"📋 Task Allocation: {robot_name} → {closest_goal}")
     
     def detect_conflicts(self) -> List[Tuple[str, str]]:
-        """YOUR ALGORITHM: Conflict detection between robots"""
+        """Conflict detection between robots"""
         conflicts = []
         robot_list = list(self.robot_data.keys())
         
@@ -131,7 +130,7 @@ class AdvancedCollaborationNode(Node):
         return conflicts
     
     def resolve_conflicts(self, conflicts: List[Tuple[str, str, float]]):
-        """YOUR ALGORITHM: Conflict resolution strategies"""
+        """Conflict resolution strategies"""
         for robot1, robot2, distance in conflicts:
             # Simple resolution: make robots move away from each other
             pos1 = np.array(self.robot_data[robot1]['position'])
@@ -151,7 +150,7 @@ class AdvancedCollaborationNode(Node):
             self.get_logger().info(f"🔄 Conflict Resolution: Separating {robot1} and {robot2}")
     
     def fuse_maps(self):
-        """YOUR ALGORITHM: Map fusion from individual robot LiDAR data"""
+        """Map fusion from individual robot LiDAR data"""
         for robot_name in self.robot_names:
             if self.robot_data[robot_name]['lidar_data']:
                 self.update_global_map(robot_name)
