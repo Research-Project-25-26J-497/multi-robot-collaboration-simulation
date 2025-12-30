@@ -26,13 +26,15 @@ class AdvancedCollaborationNode(Node):
         self.init_robot_managers()
         
         # Collaboration parameters
+        # Exploration goals spread across the environment (expanded for full map)
         self.exploration_goals = [
-            (5.0, 5.0), (-5.0, 5.0), (5.0, -5.0), (-5.0, -5.0),
-            (8.0, 0.0), (0.0, 8.0), (-8.0, 0.0), (0.0, -8.0)
+            (20.0, 20.0), (-20.0, 20.0), (20.0, -20.0), (-20.0, -20.0),
+            (0.0, 20.0), (20.0, 0.0), (-20.0, 0.0), (0.0, -20.0)
         ]
         self.assigned_tasks = {}
-        self.global_map = np.zeros((200, 200))  # 20x20m map at 0.1m resolution
-        self.map_origin = (-10, -10)  # Map origin in meters
+        # Global map sized for 50x50m area at 0.1m resolution (500x500 cells)
+        self.global_map = np.zeros((500, 500))  # 50x50m map at 0.1m resolution
+        self.map_origin = (-25, -25)  # Map origin in meters
         
         # Obstacle avoidance parameters
         self.obstacle_detection_range = 2.0  # meters
@@ -292,7 +294,8 @@ class AdvancedCollaborationNode(Node):
                     map_x = int((obstacle_x - self.map_origin[0]) / 0.1)
                     map_y = int((obstacle_y - self.map_origin[1]) / 0.1)
                     
-                    if 0 <= map_x < 200 and 0 <= map_y < 200:
+                    max_x, max_y = self.global_map.shape[0], self.global_map.shape[1]
+                    if 0 <= map_x < max_x and 0 <= map_y < max_y:
                         self.global_map[map_x, map_y] = 1
     
     def execute_tasks(self):
