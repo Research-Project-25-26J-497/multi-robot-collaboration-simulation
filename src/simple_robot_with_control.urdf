@@ -28,9 +28,9 @@
       <origin xyz="0 0 0.1"/>
     </collision>
     <inertial>
-      <mass value="5.0"/>
-      <origin xyz="0 0 0.05"/>
-      <inertia ixx="0.0458" ixy="0.0" ixz="0.0" iyy="0.0458" iyz="0.0" izz="0.075"/>
+      <mass value="3.0"/>
+      <origin xyz="0 0 0.08"/>
+      <inertia ixx="0.0275" ixy="0.0" ixz="0.0" iyy="0.0275" iyz="0.0" izz="0.045"/>
     </inertial>
   </link>
 
