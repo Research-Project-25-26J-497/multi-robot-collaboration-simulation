@@ -79,14 +79,14 @@
   <joint name="left_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="left_wheel"/>
-    <origin xyz="0 0.175 0.1" rpy="0 0 0"/>
+    <origin xyz="-0.1 0.175 0.1" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
   </joint>
 
   <joint name="right_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="right_wheel"/>
-    <origin xyz="0 -0.175 0.1" rpy="0 0 0"/>
+    <origin xyz="-0.1 -0.175 0.1" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
   </joint>
 
@@ -219,7 +219,7 @@
       <wheel_separation>0.35</wheel_separation>
       <wheel_diameter>0.2</wheel_diameter>
       <max_wheel_torque>20</max_wheel_torque>
-      <max_wheel_acceleration>1.0</max_wheel_acceleration>
+      <max_wheel_acceleration>0.5</max_wheel_acceleration>
       <command_topic>cmd_vel</command_topic>
       <odometry_topic>odom</odometry_topic>
       <odometry_frame>odom</odometry_frame>
