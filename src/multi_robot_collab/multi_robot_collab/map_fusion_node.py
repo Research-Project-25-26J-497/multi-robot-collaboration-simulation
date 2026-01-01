@@ -7,6 +7,7 @@ Based on research proposal requirements for consistent global map creation
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Pose, Point
 from tf2_ros import TransformListener, Buffer
@@ -57,11 +58,17 @@ class MapFusionNode(Node):
             self.map_subscribers.append(sub)
             self.last_update_time[robot_name] = 0.0
         
-        # Publisher for fused global map
+        # Publisher for fused global map with proper QoS for map_saver
+        map_qos = QoSProfile(
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
         self.global_map_pub = self.create_publisher(
             OccupancyGrid,
             '/fused_map',
-            10
+            map_qos
         )
         
         # Timer for continuous fusion updates

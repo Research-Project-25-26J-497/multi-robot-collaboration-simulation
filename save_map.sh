@@ -8,11 +8,11 @@ echo "Checking available map topics..."
 ros2 topic list | grep "^/.*map$"
 echo ""
 
-read -p "Enter map topic to save (e.g., /map or /robot1/map): " MAP_TOPIC
-MAP_TOPIC=${MAP_TOPIC:-/map}
+read -p "Enter map topic to save [/fused_map]: " MAP_TOPIC
+MAP_TOPIC=${MAP_TOPIC:-/fused_map}
 
-MAP_NAME="warehouse_map"
-read -p "Enter map filename [warehouse_map]: " USER_MAP_NAME
+MAP_NAME="fused_warehouse_map"
+read -p "Enter map filename [fused_warehouse_map]: " USER_MAP_NAME
 MAP_NAME=${USER_MAP_NAME:-$MAP_NAME}
 
 # Create map_images directory if it doesn't exist
@@ -20,7 +20,7 @@ mkdir -p map_images
 
 echo ""
 echo "Saving map from topic '$MAP_TOPIC' to '$MAP_NAME'..."
-ros2 run nav2_map_server map_saver_cli -f map_images/$MAP_NAME --ros-args -r map:=$MAP_TOPIC -p use_sim_time:=true
+ros2 run nav2_map_server map_saver_cli -f map_images/$MAP_NAME --ros-args -r map:=$MAP_TOPIC -p save_map_timeout:=10000.0 -p free_thresh_default:=0.25 -p occupied_thresh_default:=0.65
 
 if [ $? -eq 0 ]; then
     echo ""
