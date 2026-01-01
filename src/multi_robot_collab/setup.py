@@ -31,6 +31,9 @@ setup(
             'simple_controller = multi_robot_collab.simple_controller:main',
             'mock_robot_topics = multi_robot_collab.mock_robot_topics:main',
             'map_merger = multi_robot_collab.map_merger_node:main',
+            'scan_merger = multi_robot_collab.scan_merger_node:main',
+            'unified_slam = multi_robot_collab.unified_slam_node:main',
+            'map_fusion = multi_robot_collab.map_fusion_node:main',
         ],
     },
 )

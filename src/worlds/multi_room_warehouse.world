@@ -14,7 +14,7 @@
           <geometry>
             <plane>
               <normal>0 0 1</normal>
-              <size>50 50</size>
+              <size>40 40</size>
             </plane>
           </geometry>
         </collision>
@@ -22,7 +22,7 @@
           <geometry>
             <plane>
               <normal>0 0 1</normal>
-              <size>50 50</size>
+              <size>40 40</size>
             </plane>
           </geometry>
           <material>
@@ -34,8 +34,7 @@
       </link>
     </model>
 
-    <!-- Main Warehouse Walls -->
-    <!-- Outer boundary -->
+    <!-- Main Warehouse Walls - Reduced to 24x24m -->
     <model name="outer_walls">
       <static>true</static>
       <pose>0 0 0.5 0 0 0</pose>
@@ -45,14 +44,14 @@
         <collision name="collision">
           <geometry>
             <box>
-              <size>40 0.2 2</size>
+              <size>24 0.2 2</size>
             </box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <box>
-              <size>40 0.2 2</size>
+              <size>24 0.2 2</size>
             </box>
           </geometry>
           <material>
@@ -61,7 +60,7 @@
             <specular>0.1 0.1 0.1 1</specular>
           </material>
         </visual>
-        <pose>0 20 0 0 0 0</pose>
+        <pose>0 12 0 0 0 0</pose>
       </link>
       
       <!-- Wall 2 (South) -->
@@ -69,14 +68,14 @@
         <collision name="collision">
           <geometry>
             <box>
-              <size>40 0.2 2</size>
+              <size>24 0.2 2</size>
             </box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <box>
-              <size>40 0.2 2</size>
+              <size>24 0.2 2</size>
             </box>
           </geometry>
           <material>
@@ -85,7 +84,7 @@
             <specular>0.1 0.1 0.1 1</specular>
           </material>
         </visual>
-        <pose>0 -20 0 0 0 0</pose>
+        <pose>0 -12 0 0 0 0</pose>
       </link>
       
       <!-- Wall 3 (East) -->
@@ -93,14 +92,14 @@
         <collision name="collision">
           <geometry>
             <box>
-              <size>0.2 40 2</size>
+              <size>0.2 24 2</size>
             </box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <box>
-              <size>0.2 40 2</size>
+              <size>0.2 24 2</size>
             </box>
           </geometry>
           <material>
@@ -109,7 +108,7 @@
             <specular>0.1 0.1 0.1 1</specular>
           </material>
         </visual>
-        <pose>20 0 0 0 0 0</pose>
+        <pose>12 0 0 0 0 0</pose>
       </link>
       
       <!-- Wall 4 (West) -->
@@ -117,14 +116,14 @@
         <collision name="collision">
           <geometry>
             <box>
-              <size>0.2 40 2</size>
+              <size>0.2 24 2</size>
             </box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <box>
-              <size>0.2 40 2</size>
+              <size>0.2 24 2</size>
             </box>
           </geometry>
           <material>
@@ -133,80 +132,205 @@
             <specular>0.1 0.1 0.1 1</specular>
           </material>
         </visual>
-        <pose>-20 0 0 0 0 0</pose>
+        <pose>-12 0 0 0 0 0</pose>
       </link>
     </model>
 
-    <!-- Interior Walls - Creating 4 separate rooms -->
-    
-    <!-- Room 1 (Northwest) -->
-    <model name="room1_walls">
+    <!-- Central Corridor (runs horizontally through center) -->
+    <model name="corridor_walls">
       <static>true</static>
       <pose>0 0 0.5 0 0 0</pose>
       
-      <!-- Horizontal divider -->
-      <link name="divider1">
+      <!-- North corridor wall (with gaps for doorways) -->
+      <link name="corridor_north_left">
         <collision name="collision">
           <geometry>
             <box>
-              <size>15 0.2 2</size>
+              <size>8 0.2 2</size>
             </box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <box>
-              <size>15 0.2 2</size>
+              <size>8 0.2 2</size>
             </box>
           </geometry>
           <material>
             <ambient>0.3 0.5 0.3 1</ambient>
           </material>
         </visual>
-        <pose>-12.5 0 0 0 0 0</pose>
+        <pose>-8 3 0 0 0 0</pose>
       </link>
       
-      <!-- Vertical divider -->
-      <link name="divider2">
+      <link name="corridor_north_right">
         <collision name="collision">
           <geometry>
             <box>
-              <size>0.2 15 2</size>
+              <size>8 0.2 2</size>
             </box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <box>
-              <size>0.2 15 2</size>
+              <size>8 0.2 2</size>
             </box>
           </geometry>
           <material>
             <ambient>0.3 0.5 0.3 1</ambient>
           </material>
         </visual>
-        <pose>0 12.5 0 0 0 0</pose>
+        <pose>8 3 0 0 0 0</pose>
       </link>
-    </model>
-
-    <!-- Doors between rooms -->
-    <model name="doors">
-      <static>true</static>
-      <pose>0 0 0.5 0 0 0</pose>
       
-      <!-- Door 1: Between Room 1 and Room 2 -->
-      <link name="door1">
+      <!-- South corridor wall (with gaps for doorways) -->
+      <link name="corridor_south_left">
         <collision name="collision">
           <geometry>
             <box>
-              <size>0.2 3 2</size>
+              <size>8 0.2 2</size>
             </box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <box>
-              <size>0.2 3 2</size>
+              <size>8 0.2 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.5 0.3 1</ambient>
+          </material>
+        </visual>
+        <pose>-8 -3 0 0 0 0</pose>
+      </link>
+      
+      <link name="corridor_south_right">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>8 0.2 2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>8 0.2 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.5 0.3 1</ambient>
+          </material>
+        </visual>
+        <pose>8 -3 0 0 0 0</pose>
+      </link>
+      
+      <!-- Vertical dividers creating 4 rooms with doorways -->
+      <link name="divider_vertical_top">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.2 6 2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.2 6 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.5 0.3 1</ambient>
+          </material>
+        </visual>
+        <pose>0 13 0 0 0 0</pose>
+      </link>
+      
+      <link name="divider_vertical_bottom">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.2 6 2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.2 6 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.5 0.3 1</ambient>
+          </material>
+        </visual>
+        <pose>0 4 0 0 0 0</pose>
+      </link>
+      
+      <link name="divider_vertical2_top">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.2 6 2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.2 6 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.5 0.3 1</ambient>
+          </material>
+        </visual>
+        <pose>0 -4 0 0 0 0</pose>
+      </link>
+      
+      <link name="divider_vertical2_bottom">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.2 6 2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.2 6 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.5 0.3 1</ambient>
+          </material>
+        </visual>
+        <pose>0 -13 0 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Additional warehouse features - Storage racks and obstacles -->
+    <model name="warehouse_objects">
+      <static>true</static>
+      <pose>0 0 0.5 0 0 0</pose>
+      
+      <!-- Storage racks in NW room -->
+      <link name="rack1">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>3 0.5 2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>3 0.5 2</size>
             </box>
           </geometry>
           <material>
@@ -214,22 +338,21 @@
             <diffuse>0.6 0.4 0.2 1</diffuse>
           </material>
         </visual>
-        <pose>0 5 0 0 0 0</pose>
+        <pose>-8 8 0 0 0 0</pose>
       </link>
       
-      <!-- Door 2: Between Room 1 and Room 3 -->
-      <link name="door2">
+      <link name="rack2">
         <collision name="collision">
           <geometry>
             <box>
-              <size>3 0.2 2</size>
+              <size>3 0.5 2</size>
             </box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <box>
-              <size>3 0.2 2</size>
+              <size>3 0.5 2</size>
             </box>
           </geometry>
           <material>
@@ -237,21 +360,60 @@
             <diffuse>0.6 0.4 0.2 1</diffuse>
           </material>
         </visual>
-        <pose>-5 0 0 0 0 0</pose>
+        <pose>-8 5 0 0 0 0</pose>
       </link>
-    </model>
-
-    <!-- Obstacles for testing navigation -->
-    <model name="obstacles">
-      <static>true</static>
-      <pose>0 0 0.5 0 0 0</pose>
       
-      <!-- Obstacle in Room 1 -->
-      <link name="obstacle1">
+      <!-- Boxes in NE room -->
+      <link name="box1">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.5 1.5 1.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.5 1.5 1.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.7 0.5 0.3 1</ambient>
+            <diffuse>0.7 0.5 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>6 8 0 0 0 0</pose>
+      </link>
+      
+      <link name="box2">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.5 1.5 1.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.5 1.5 1.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.7 0.5 0.3 1</ambient>
+            <diffuse>0.7 0.5 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>9 8 0 0 0 0</pose>
+      </link>
+      
+      <!-- Cylinders in SW room -->
+      <link name="cylinder1">
         <collision name="collision">
           <geometry>
             <cylinder>
-              <radius>1.0</radius>
+              <radius>0.8</radius>
               <length>2.0</length>
             </cylinder>
           </geometry>
@@ -259,7 +421,7 @@
         <visual name="visual">
           <geometry>
             <cylinder>
-              <radius>1.0</radius>
+              <radius>0.8</radius>
               <length>2.0</length>
             </cylinder>
           </geometry>
@@ -268,68 +430,91 @@
             <diffuse>0.8 0.2 0.2 1</diffuse>
           </material>
         </visual>
-        <pose>-15 15 0 0 0 0</pose>
+        <pose>-8 -8 0 0 0 0</pose>
       </link>
       
-      <!-- Obstacle in Room 2 -->
-      <link name="obstacle2">
+      <link name="cylinder2">
         <collision name="collision">
           <geometry>
-            <box>
-              <size>2 2 2</size>
-            </box>
+            <cylinder>
+              <radius>0.6</radius>
+              <length>2.0</length>
+            </cylinder>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box>
-              <size>2 2 2</size>
-            </box>
-          </geometry>
-          <material>
-            <ambient>0.2 0.2 0.8 1</ambient>
-            <diffuse>0.2 0.2 0.8 1</diffuse>
-          </material>
-        </visual>
-        <pose>15 15 0 0 0 0</pose>
-      </link>
-      
-      <!-- Obstacle in Room 3 -->
-      <link name="obstacle3">
-        <collision name="collision">
-          <geometry>
-            <sphere>
-              <radius>1.5</radius>
-            </sphere>
-          </geometry>
-        </collision>
-        <visual name="visual">
-          <geometry>
-            <sphere>
-              <radius>1.5</radius>
-            </sphere>
+            <cylinder>
+              <radius>0.6</radius>
+              <length>2.0</length>
+            </cylinder>
           </geometry>
           <material>
             <ambient>0.2 0.8 0.2 1</ambient>
             <diffuse>0.2 0.8 0.2 1</diffuse>
           </material>
         </visual>
-        <pose>-15 -15 0 0 0 0</pose>
+        <pose>-5 -9 0 0 0 0</pose>
       </link>
       
-      <!-- Obstacle in Room 4 -->
-      <link name="obstacle4">
+      <!-- Equipment in SE room -->
+      <link name="equipment1">
         <collision name="collision">
           <geometry>
             <box>
-              <size>3 1 2</size>
+              <size>2 1.5 2</size>
             </box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
             <box>
-              <size>3 1 2</size>
+              <size>2 1.5 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.7 1</ambient>
+            <diffuse>0.3 0.3 0.7 1</diffuse>
+          </material>
+        </visual>
+        <pose>7 -7 0 0 0 0</pose>
+      </link>
+      
+      <link name="equipment2">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1 2 1.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1 2 1.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+        <pose>10 -9 0 0 0 0</pose>
+      </link>
+      
+      <!-- Central corridor obstacles -->
+      <link name="corridor_box">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1 1 1.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1 1 1.5</size>
             </box>
           </geometry>
           <material>
@@ -337,7 +522,7 @@
             <diffuse>0.8 0.8 0.2 1</diffuse>
           </material>
         </visual>
-        <pose>15 -15 0 0 0 0</pose>
+        <pose>2 0 0 0 0 0</pose>
       </link>
     </model>
 

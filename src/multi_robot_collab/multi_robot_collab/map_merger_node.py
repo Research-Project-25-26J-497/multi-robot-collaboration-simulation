@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
 Multi-Robot Map Merger Node
-Merges maps from multiple robots into a single unified map
+Merges maps from multiple robots into a single unified map using TF transforms
 """
 
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
+from geometry_msgs.msg import TransformStamped
+from tf2_ros import TransformListener, Buffer
 import numpy as np
-from typing import Dict, List
+from typing import Dict, List, Optional
 import math
 
 class MapMergerNode(Node):
@@ -22,19 +24,23 @@ class MapMergerNode(Node):
         self.robot_maps: Dict[str, OccupancyGrid] = {}
         self.last_update_time: Dict[str, float] = {}
         
-        # Merged map parameters
+        # TF2 for transform lookups
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+        
+        # Merged map parameters - larger to accommodate all robots
         self.merged_map = OccupancyGrid()
-        self.merged_map.header.frame_id = 'map'
+        self.merged_map.header.frame_id = 'map'  # Use shared map frame
         self.merged_map.info.resolution = 0.05  # 5cm resolution
-        self.merged_map.info.width = 1000  # 50m x 50m map
-        self.merged_map.info.height = 1000
-        self.merged_map.info.origin.position.x = -25.0
-        self.merged_map.info.origin.position.y = -25.0
+        self.merged_map.info.width = 2000  # 100m x 100m map
+        self.merged_map.info.height = 2000
+        self.merged_map.info.origin.position.x = -50.0
+        self.merged_map.info.origin.position.y = -50.0
         self.merged_map.info.origin.position.z = 0.0
         self.merged_map.info.origin.orientation.w = 1.0
         
         # Initialize empty map
-        self.merged_map.data = [-1] * (1000 * 1000)
+        self.merged_map.data = [-1] * (2000 * 2000)
         
         # Subscribe to each robot's map
         self.map_subscribers = []
@@ -58,7 +64,32 @@ class MapMergerNode(Node):
         # Timer to publish merged map
         self.create_timer(1.0, self.publish_merged_map)
         
-        self.get_logger().info("Map Merger Node started - merging maps from all robots")
+        self.get_logger().info("Map Merger Node started - merging maps from all robots into world frame")
+        self.get_logger().info(f"Merged map: {self.merged_map.info.width}x{self.merged_map.info.height} cells, resolution {self.merged_map.info.resolution}m")
+    
+    def get_robot_pose_in_world(self, robot_name: str) -> Optional[tuple]:
+        """Get robot's map origin in world frame using TF"""
+        try:
+            # Look up transform from map to robot's base_link (current robot pose)
+            transform = self.tf_buffer.lookup_transform(
+                'map',
+                f'{robot_name}/base_link',
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=0.1)
+            )
+            
+            x = transform.transform.translation.x
+            y = transform.transform.translation.y
+            
+            # Extract yaw from quaternion
+            qz = transform.transform.rotation.z
+            qw = transform.transform.rotation.w
+            yaw = math.atan2(2.0 * (qw * qz), 1.0 - 2.0 * (qz * qz))
+            
+            return (x, y, yaw)
+        except Exception as e:
+            # Transform not available yet
+            return None
     
     def map_callback(self, msg: OccupancyGrid, robot_name: str):
         """Store incoming map from a robot"""
@@ -69,7 +100,7 @@ class MapMergerNode(Node):
         self.merge_maps()
     
     def merge_maps(self):
-        """Merge all robot maps into a single unified map"""
+        """Merge all robot maps into a single unified map - all maps already in shared frame"""
         if not self.robot_maps:
             return
         
@@ -83,10 +114,11 @@ class MapMergerNode(Node):
         # Initialize with unknown cells
         merged_data = np.full((merged_height, merged_width), -1, dtype=np.int8)
         
-        # Track cell confidence (higher = more reliable)
-        cell_confidence = np.zeros((merged_height, merged_width), dtype=np.float32)
+        # Track how many robots have seen each cell (for averaging)
+        cell_count = np.zeros((merged_height, merged_width), dtype=np.int32)
+        cell_sum = np.zeros((merged_height, merged_width), dtype=np.float32)
         
-        # Merge each robot's map
+        # Merge each robot's map - they're all already in the same 'map' frame!
         for robot_name, robot_map in self.robot_maps.items():
             if robot_map is None:
                 continue
@@ -109,35 +141,25 @@ class MapMergerNode(Node):
                     if cell_value == -1:
                         continue
                     
-                    # Convert robot cell coordinates to world coordinates
-                    world_x = robot_origin_x + (rx + 0.5) * robot_resolution
-                    world_y = robot_origin_y + (ry + 0.5) * robot_resolution
+                    # Convert robot cell coordinates to map frame coordinates
+                    map_x = robot_origin_x + (rx + 0.5) * robot_resolution
+                    map_y = robot_origin_y + (ry + 0.5) * robot_resolution
                     
-                    # Convert world coordinates to merged map coordinates
-                    mx = int((world_x - merged_origin_x) / merged_resolution)
-                    my = int((world_y - merged_origin_y) / merged_resolution)
+                    # Convert map coordinates to merged map coordinates
+                    mx = int((map_x - merged_origin_x) / merged_resolution)
+                    my = int((map_y - merged_origin_y) / merged_resolution)
                     
                     # Check if within merged map bounds
                     if 0 <= mx < merged_width and 0 <= my < merged_height:
-                        # Use probabilistic merging
-                        # Occupied cells (100) have higher weight than free cells (0)
-                        new_confidence = 1.0 if cell_value > 50 else 0.5
-                        
-                        if cell_confidence[my, mx] == 0:
-                            # First time seeing this cell
-                            merged_data[my, mx] = cell_value
-                            cell_confidence[my, mx] = new_confidence
-                        else:
-                            # Merge with existing data using weighted average
-                            old_value = merged_data[my, mx]
-                            old_confidence = cell_confidence[my, mx]
-                            
-                            # Weight average
-                            total_confidence = old_confidence + new_confidence
-                            merged_value = (old_value * old_confidence + cell_value * new_confidence) / total_confidence
-                            
-                            merged_data[my, mx] = int(merged_value)
-                            cell_confidence[my, mx] = min(total_confidence, 5.0)  # Cap confidence
+                        # Accumulate cell values for averaging
+                        cell_sum[my, mx] += cell_value
+                        cell_count[my, mx] += 1
+        
+        # Average overlapping cells
+        for y in range(merged_height):
+            for x in range(merged_width):
+                if cell_count[y, x] > 0:
+                    merged_data[y, x] = int(cell_sum[y, x] / cell_count[y, x])
         
         # Convert back to list format for ROS message
         self.merged_map.data = merged_data.flatten().tolist()
