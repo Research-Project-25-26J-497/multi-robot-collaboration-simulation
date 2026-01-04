@@ -14,6 +14,8 @@
   <depend>sensor_msgs</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_msgs</depend>
+  <depend>slam_toolbox</depend>
+  <depend>rviz2</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

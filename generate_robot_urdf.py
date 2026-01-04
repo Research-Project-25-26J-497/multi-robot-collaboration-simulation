@@ -1,5 +1,11 @@
-<?xml version="1.0"?>
-<robot name="nav_robot">
+#!/usr/bin/env python3
+"""Generate a namespaced URDF for a specific robot"""
+
+import sys
+
+def generate_urdf(robot_name):
+    urdf = f'''<?xml version="1.0"?>
+<robot name="{robot_name}">
 
   <!-- MACROS & MATERIALS -->
   <material name="blue">
@@ -13,7 +19,7 @@
   </material>
 
   <!-- BASE LINK -->
-  <link name="base_link">
+  <link name="{robot_name}/base_link">
     <visual>
       <geometry>
         <box size="0.3 0.3 0.1"/>
@@ -35,7 +41,7 @@
   </link>
 
   <!-- DRIVE WHEELS (Right and Left) -->
-  <link name="left_wheel">
+  <link name="{robot_name}/left_wheel">
     <visual>
       <geometry>
         <cylinder length="0.05" radius="0.1"/>
@@ -55,7 +61,7 @@
     </inertial>
   </link>
 
-  <link name="right_wheel">
+  <link name="{robot_name}/right_wheel">
     <visual>
       <geometry>
         <cylinder length="0.05" radius="0.1"/>
@@ -76,22 +82,22 @@
   </link>
 
   <!-- Wheel Joints -->
-  <joint name="left_wheel_joint" type="continuous">
-    <parent link="base_link"/>
-    <child link="left_wheel"/>
+  <joint name="{robot_name}/left_wheel_joint" type="continuous">
+    <parent link="{robot_name}/base_link"/>
+    <child link="{robot_name}/left_wheel"/>
     <origin xyz="-0.1 0.175 0.1" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
   </joint>
 
-  <joint name="right_wheel_joint" type="continuous">
-    <parent link="base_link"/>
-    <child link="right_wheel"/>
+  <joint name="{robot_name}/right_wheel_joint" type="continuous">
+    <parent link="{robot_name}/base_link"/>
+    <child link="{robot_name}/right_wheel"/>
     <origin xyz="-0.1 -0.175 0.1" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
   </joint>
 
   <!-- CASTER WHEEL (Passive support wheel) -->
-  <link name="caster_link">
+  <link name="{robot_name}/caster_link">
     <visual>
       <geometry>
         <sphere radius="0.05"/>
@@ -109,14 +115,14 @@
     </inertial>
   </link>
 
-  <joint name="caster_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="caster_link"/>
+  <joint name="{robot_name}/caster_joint" type="fixed">
+    <parent link="{robot_name}/base_link"/>
+    <child link="{robot_name}/caster_link"/>
     <origin xyz="0.08 0 0.05"/>
   </joint>
 
   <!-- LiDAR SENSOR (Hokuyo/Laser for SLAM) -->
-  <link name="laser_link">
+  <link name="{robot_name}/laser_link">
     <visual>
       <geometry>
         <cylinder length="0.05" radius="0.05"/>
@@ -134,21 +140,18 @@
     </inertial>
   </link>
 
-  <joint name="laser_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="laser_link"/>
-    <origin xyz="0 0 0.25"/> <!-- Placed above the base, moved a bit up so the robots wheels wouldn't be detected by the sensor -->
+  <joint name="{robot_name}/laser_joint" type="fixed">
+    <parent link="{robot_name}/base_link"/>
+    <child link="{robot_name}/laser_link"/>
+    <origin xyz="0 0 0.25"/>
   </joint>
 
   <!-- GAZEBO PHYSICS PROPERTIES -->
-
-  <!-- Base Link Gazebo reference (Add material for better visual representation in Gazebo) -->
-  <gazebo reference="base_link">
+  <gazebo reference="{robot_name}/base_link">
     <material>Gazebo/Blue</material>
   </gazebo>
 
-  <!-- Wheel Gazebo references (Crucial for friction) -->
-  <gazebo reference="left_wheel">
+  <gazebo reference="{robot_name}/left_wheel">
     <material>Gazebo/Black</material>
     <mu1>1.0</mu1>
     <mu2>1.0</mu2>
@@ -157,7 +160,7 @@
     <fdir1>1 0 0</fdir1>
   </gazebo>
 
-  <gazebo reference="right_wheel">
+  <gazebo reference="{robot_name}/right_wheel">
     <material>Gazebo/Black</material>
     <mu1>1.0</mu1>
     <mu2>1.0</mu2>
@@ -166,15 +169,14 @@
     <fdir1>1 0 0</fdir1>
   </gazebo>
 
-  <!-- Caster Wheel Gazebo reference (Should have low friction for rolling) -->
-  <gazebo reference="caster_link">
+  <gazebo reference="{robot_name}/caster_link">
     <material>Gazebo/Green</material>
     <mu1>0.01</mu1>
     <mu2>0.01</mu2>
   </gazebo>
 
-  <!-- GAZEBO SENSOR PLUGIN (LiDAR) -->
-  <gazebo reference="laser_link">
+  <!-- GAZEBO SENSOR PLUGIN (LiDAR) with namespaced frame -->
+  <gazebo reference="{robot_name}/laser_link">
     <material>Gazebo/Black</material>
     <sensor name="laser_sensor" type="ray">
       <always_on>true</always_on>
@@ -192,41 +194,51 @@
         </scan>
         <range>
           <min>0.10</min>
-          <max>8.0</max>
+          <max>5.0</max>
           <resolution>0.01</resolution>
         </range>
       </ray>
-      <!-- The ROS topic will be namespaced, e.g., /robot1/scan -->
       <plugin name="laser_controller" filename="libgazebo_ros_ray_sensor.so">
         <ros>
+          <namespace>/{robot_name}</namespace>
           <remapping>~/out:=scan</remapping>
         </ros>
         <output_type>sensor_msgs/LaserScan</output_type>
-        <frame_name>laser_link</frame_name>
+        <frame_name>{robot_name}/laser_link</frame_name>
       </plugin>
     </sensor>
   </gazebo>
 
-  <!-- GAZEBO CONTROL PLUGIN (Differential Drive) -->
+  <!-- GAZEBO CONTROL PLUGIN (Differential Drive) with namespaced frames -->
   <gazebo>
     <plugin filename="libgazebo_ros_diff_drive.so" name="diff_drive_controller">
       <ros>
-        <namespace>/</namespace>
-        <argument>robot_namespace</argument>
+        <namespace>/{robot_name}</namespace>
       </ros>
-      <left_joint>left_wheel_joint</left_joint>
-      <right_joint>right_wheel_joint</right_joint>
+      <left_joint>{robot_name}/left_wheel_joint</left_joint>
+      <right_joint>{robot_name}/right_wheel_joint</right_joint>
       <wheel_separation>0.35</wheel_separation>
       <wheel_diameter>0.2</wheel_diameter>
       <max_wheel_torque>20</max_wheel_torque>
       <max_wheel_acceleration>0.5</max_wheel_acceleration>
       <command_topic>cmd_vel</command_topic>
       <odometry_topic>odom</odometry_topic>
-      <odometry_frame>odom</odometry_frame>
-      <robot_base_frame>base_link</robot_base_frame>
+      <odometry_frame>{robot_name}/odom</odometry_frame>
+      <robot_base_frame>{robot_name}/base_link</robot_base_frame>
       <publish_odom>true</publish_odom>
       <publish_odom_tf>true</publish_odom_tf>
     </plugin>
   </gazebo>
 
 </robot>
+'''
+    return urdf
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: ./generate_robot_urdf.py <robot_name>")
+        print("Example: ./generate_robot_urdf.py robot1")
+        sys.exit(1)
+    
+    robot_name = sys.argv[1]
+    print(generate_urdf(robot_name))
