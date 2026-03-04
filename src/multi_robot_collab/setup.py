@@ -34,6 +34,7 @@ setup(
             'scan_merger = multi_robot_collab.scan_merger_node:main',
             'unified_slam = multi_robot_collab.unified_slam_node:main',
             'map_fusion = multi_robot_collab.map_fusion_node:main',
+            'web_bridge = multi_robot_collab.ros2_web_bridge:main',
         ],
     },
 )

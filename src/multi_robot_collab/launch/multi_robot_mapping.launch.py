@@ -68,8 +68,18 @@ def generate_launch_description():
         output='screen'
     )
     
+    # Web bridge node – serves SLAM data to the visualization platform
+    web_bridge_node = Node(
+        package='multi_robot_collab',
+        executable='web_bridge',
+        name='web_bridge',
+        parameters=[{'use_sim_time': True}],
+        output='screen',
+    )
+
     return LaunchDescription([
         *slam_nodes,
         rviz_node,
         map_merger_node,
+        web_bridge_node,
     ])

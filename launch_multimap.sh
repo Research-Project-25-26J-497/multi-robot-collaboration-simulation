@@ -8,7 +8,7 @@ source /opt/ros/humble/setup.bash
 source ~/multi_robot_ws/install/setup.bash
 
 # Kill any existing processes
-killall -9 gzserver gzclient async_slam_toolbox_node robot_state_publisher rviz2 advanced_collaboration_node spawn_entity.py map_fusion 2>/dev/null
+killall -9 gzserver gzclient async_slam_toolbox_node robot_state_publisher rviz2 advanced_collaboration_node spawn_entity.py map_fusion web_bridge 2>/dev/null
 sleep 2
 
 # Launch Gazebo
@@ -98,6 +98,22 @@ else
     echo "Check /tmp/map_fusion.log for errors"
 fi
 
+# Launch web bridge (serves SLAM data to the visualization platform at port 8000)
+echo "Step 5c: Launching ROS2-to-Web bridge..."
+ros2 run multi_robot_collab web_bridge \
+    --ros-args \
+    -p use_sim_time:=true > /tmp/web_bridge.log 2>&1 &
+
+sleep 2
+
+if pgrep -f "web_bridge" > /dev/null; then
+    echo "✓ Web bridge started — SLAM Platform available at http://localhost:8000"
+else
+    echo "✗ WARNING: Web bridge failed to start (fastapi/uvicorn installed?)"
+    echo "  Run: pip install fastapi 'uvicorn[standard]'"
+    echo "  Log: /tmp/web_bridge.log"
+fi
+
 # Launch navigation nodes
 echo "Step 6: Starting navigation..."
 for i in $(seq 1 $NUM_ROBOTS); do
@@ -119,8 +135,13 @@ echo "========================================="
 echo "✓ Multi-robot SLAM system running!"
 echo "========================================="
 echo ""
-echo "Architecture: Distributed SLAM with Map Fusion"
+echo "Architecture: Distributed SLAM with Map Fusion + Web Bridge"
 echo "Robots: $NUM_ROBOTS (all mapping in shared 'map' frame)"
+echo ""
+echo "SLAM Visualization Platform:"
+echo "  Web bridge: http://localhost:8000"
+echo "  Next.js client: cd slam-visualization-platform-client && npm run dev"
+echo "  Then open: http://localhost:3000"
 echo ""
 echo "Maps:"
 echo "  Individual: /robot1/map, /robot2/map, /robot3/map, /robot4/map"
@@ -152,5 +173,5 @@ echo ""
 echo "Press Ctrl+C to stop"
 echo "========================================="
 
-trap "killall -9 gzserver gzclient async_slam_toolbox_node robot_state_publisher rviz2 advanced_collaboration_node spawn_entity.py static_transform_publisher map_fusion 2>/dev/null; exit" INT
+trap "killall -9 gzserver gzclient async_slam_toolbox_node robot_state_publisher rviz2 advanced_collaboration_node spawn_entity.py static_transform_publisher map_fusion web_bridge 2>/dev/null; exit" INT
 wait
