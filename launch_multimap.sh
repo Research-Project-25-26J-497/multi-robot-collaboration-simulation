@@ -98,7 +98,21 @@ else
     echo "Check /tmp/map_fusion.log for errors"
 fi
 
-# Launch web bridge (serves SLAM data to the visualization platform at port 8000)
+# Detect Windows host IP when running inside WSL2 so the bridge can reach
+# the backend (which runs on Windows).  The host is always the default gateway.
+# Falls back to localhost if not WSL2.
+if grep -qi 'microsoft' /proc/version 2>/dev/null; then
+    WSL2_HOST_IP=$(ip route show | awk '/^default/ {print $3; exit}')
+fi
+if [ -n "$WSL2_HOST_IP" ]; then
+    export MANTIS_BACKEND_URL="http://${WSL2_HOST_IP}:8000"
+    echo "  Detected WSL2 – backend URL set to $MANTIS_BACKEND_URL"
+else
+    export MANTIS_BACKEND_URL="http://localhost:8000"
+    echo "  Backend URL: $MANTIS_BACKEND_URL"
+fi
+
+# Launch web bridge (forwards SLAM data to the backend at MANTIS_BACKEND_URL)
 echo "Step 5c: Launching ROS2-to-Web bridge..."
 ros2 run multi_robot_collab web_bridge \
     --ros-args \
@@ -107,10 +121,11 @@ ros2 run multi_robot_collab web_bridge \
 sleep 2
 
 if pgrep -f "web_bridge" > /dev/null; then
-    echo "✓ Web bridge started — SLAM Platform available at http://localhost:8000"
+    echo "✓ Web bridge started — forwarding to $MANTIS_BACKEND_URL"
+    echo "  Log: /tmp/web_bridge.log"
 else
-    echo "✗ WARNING: Web bridge failed to start (fastapi/uvicorn installed?)"
-    echo "  Run: pip install fastapi 'uvicorn[standard]'"
+    echo "✗ WARNING: Web bridge failed to start"
+    echo "  Run: pip install requests numpy"
     echo "  Log: /tmp/web_bridge.log"
 fi
 

@@ -1,48 +1,43 @@
 #!/usr/bin/env python3
 """
-ROS2-to-Web Bridge Node
-=======================
+ROS2-to-Backend Bridge Node
+============================
 Bridges the multi-robot SLAM simulation to the SLAM Visualization Platform
-web client (http://localhost:8000).
+backend API (http://localhost:8000).
 
 Data flow
 ---------
-  /merged_map  (nav_msgs/OccupancyGrid)  → GET /api/map   (3-D point cloud)
-  /fused_map   (nav_msgs/OccupancyGrid)  → GET /api/map   (fallback source)
-  /robotN/odom (nav_msgs/Odometry)       → WebSocket /ws  (MULTI_ROBOT_POSES)
+  /merged_map  (nav_msgs/OccupancyGrid)  → POST /api/map/batch
+  /fused_map   (nav_msgs/OccupancyGrid)  → POST /api/map/batch   (fallback)
+  /robotN/odom (nav_msgs/Odometry)       → POST /api/robot/telemetry
 
-The node runs a FastAPI/uvicorn HTTP server in a daemon thread and exposes
-every REST endpoint the Next.js frontend already calls. No changes to the
-simulation or the frontend transport layer are required.
+The node forwards real SLAM data to the backend so heatmaps, annotations,
+and map snapshots reflect actual robot activity instead of the sample
+simulate_slam.py data.
 
 Dependencies (pip)
 ------------------
-  pip install fastapi uvicorn[standard]
+  pip install requests numpy
 """
 
-import asyncio
-import json
 import math
+import os
 import threading
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set
+import time
+from typing import Dict, List
 
 import numpy as np
+import requests
 import rclpy
 from nav_msgs.msg import OccupancyGrid, Odometry
 from rclpy.node import Node
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import uvicorn
 
 
 # ── Robot metadata ─────────────────────────────────────────────────────────────
 
 ROBOT_NAMES: List[str] = ["robot1", "robot2", "robot3", "robot4"]
 
-# Hex colours shown in the Three.js canvas for each robot
+# Hex colours matching the Three.js canvas and backend ROBOT_COLORS
 ROBOT_COLORS: Dict[str, str] = {
     "robot1": "orange",
     "robot2": "#22d3ee",   # cyan-400
@@ -50,192 +45,66 @@ ROBOT_COLORS: Dict[str, str] = {
     "robot4": "#f472b6",   # pink-400
 }
 
+# ── Bridge configuration ────────────────────────────────────────────────────────
 
-# Shared state (written by ROS thread, read by FastAPI)
-
-class _BridgeState:
-    def __init__(self) -> None:
-        self.map_points: List[dict] = []
-        self.map_version: int = 0
-        self.robot_poses: Dict[str, dict] = {}
-        self.ws_clients: Set[WebSocket] = set()
-        self.lock = threading.Lock()
-        self.event_loop: Optional[asyncio.AbstractEventLoop] = None
-        self.started_at: str = datetime.now(timezone.utc).isoformat()
+# Minimum seconds between map batch POSTs to avoid overloading the backend
+MAP_THROTTLE_SEC = 2.0
 
 
-_state = _BridgeState()
-
-
-# FastAPI application
-
-app = FastAPI(title="SLAM Visualization Bridge", version="1.0.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# helpers
-
-async def _broadcast(message: str) -> None:
-    """Forward *message* to every connected WebSocket client."""
-    dead: Set[WebSocket] = set()
-    with _state.lock:
-        clients = list(_state.ws_clients)
-    for ws in clients:
-        try:
-            await ws.send_text(message)
-        except Exception:
-            dead.add(ws)
-    if dead:
-        with _state.lock:
-            _state.ws_clients -= dead
-
-
-def _schedule_broadcast(message: str) -> None:
-    """Thread-safe helper: schedule a broadcast from a sync ROS callback."""
-    loop = _state.event_loop
-    if loop and loop.is_running():
-        asyncio.run_coroutine_threadsafe(_broadcast(message), loop)
-
-
-# REST endpoints
-
-@app.get("/api/map")
-async def get_map(version: int = 0):
+def _resolve_backend_url() -> str:
     """
-    Returns the current merged-map point cloud (or 'no_update' when unchanged).
+    Resolve the backend URL with the following priority:
+      1. MANTIS_BACKEND_URL environment variable (always wins)
+      2. Auto-detected Windows host IP when running inside WSL2
+      3. http://localhost:8000 (same-machine fallback)
+
+    When the backend runs on Windows and the simulation runs in WSL2,
+    'localhost' inside WSL2 does NOT reach Windows.  The Windows host is
+    reachable via the 'nameserver' entry in /etc/resolv.conf (WSL2 injects
+    the host IP there).
     """
-    with _state.lock:
-        current_version = _state.map_version
-        if current_version == version:
-            return {"status": "no_update", "version": version, "points": []}
-        return {
-            "status": "ok",
-            "version": current_version,
-            "points": _state.map_points,
-        }
+    env_url = os.environ.get("MANTIS_BACKEND_URL", "").strip()
+    if env_url:
+        return env_url
 
-
-@app.get("/api/system/status")
-async def get_status():
-    """Polled by SideBar.tsx every 2 s."""
-    with _state.lock:
-        active = [rid for rid, p in _state.robot_poses.items() if p]
-    return {
-        # Keys expected by SideBar.tsx (in SLAM Visualization Platform)
-        "simulator_status": "CONNECTED",
-        "last_heartbeat": datetime.now(timezone.utc).isoformat(),
-        # Extra info for diagnostics
-        "active_robots": active,
-        "robot_count": len(active),
-        "map_points": len(_state.map_points),
-        "map_version": _state.map_version,
-        "bridge_started_at": _state.started_at,
-    }
-
-
-@app.post("/api/command/waypoint")
-async def set_waypoint(body: dict):
-    """
-    Called by MapCanvas.tsx when the user clicks to deploy a robot.
-    TODO: publish geometry_msgs/PoseStamped to /<robot_id>/move_base_simple/goal
-    """
-    robot_id = body.get("robot_id", "robot1")
-    x = body.get("x", 0.0)
-    z = body.get("z", 0.0)      # Three.js z == ROS y
-    return {
-        "status": "ok",
-        "message": f"Waypoint ({x:.2f}, {z:.2f}) queued for {robot_id}",
-    }
-
-
-@app.post("/api/command/emergency_stop")
-async def emergency_stop():
-    """
-    TODO: publish std_msgs/Empty to /emergency_stop for every robot.
-    """
-    return {"status": "ok", "message": "Emergency stop triggered"}
-
-
-@app.get("/api/annotations")
-async def get_annotations():
-    return JSONResponse(content=[])
-
-
-@app.post("/api/annotations")
-async def create_annotation(body: dict):
-    return JSONResponse(
-        content={"id": f"bridge-{id(body)}", **body},
-        status_code=201,
-    )
-
-
-@app.post("/api/map/snapshot")
-async def save_snapshot():
-    return {"status": "ok", "message": "Snapshot saved (bridge stub)"}
-
-
-@app.post("/api/map/load")
-async def load_snapshot():
-    return {"status": "ok", "message": "Snapshot loaded (bridge stub)"}
-
-
-@app.delete("/api/map/clear")
-async def clear_map():
-    with _state.lock:
-        _state.map_points = []
-        _state.map_version += 1
-    return {"status": "ok"}
-
-
-@app.get("/api/analytics/collisions")
-async def get_collisions():
-    return JSONResponse(content=[])
-
-
-# WebSocket endpoint
-
-@app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket):
-    await ws.accept()
-    with _state.lock:
-        _state.ws_clients.add(ws)
-        # Send current poses immediately so the client doesn't wait
-        initial_robots = list(_state.robot_poses.values())
-
-    if initial_robots:
-        await ws.send_text(
-            json.dumps({"type": "MULTI_ROBOT_POSES", "robots": initial_robots})
-        )
-
+    # Detect WSL2: /proc/version contains 'microsoft' on WSL kernels
     try:
-        while True:
-            # We don't need to receive anything; keep the connection alive.
-            await asyncio.sleep(30)
-    except (WebSocketDisconnect, Exception):
+        with open("/proc/version", "r") as fh:
+            if "microsoft" in fh.read().lower():
+                import subprocess
+                result = subprocess.run(
+                    ["ip", "route", "show"],
+                    capture_output=True, text=True, timeout=3
+                )
+                for line in result.stdout.splitlines():
+                    if line.startswith("default"):
+                        parts = line.split()
+                        via_idx = parts.index("via") if "via" in parts else -1
+                        if via_idx != -1 and via_idx + 1 < len(parts):
+                            host_ip = parts[via_idx + 1]
+                            return f"http://{host_ip}:8000"
+    except (OSError, IndexError, ValueError, Exception):
         pass
-    finally:
-        with _state.lock:
-            _state.ws_clients.discard(ws)
+
+    return "http://localhost:8000"
 
 
-# ROS2 Node
+BACKEND_URL = _resolve_backend_url()
+
+
+# ── ROS2 Node ─────────────────────────────────────────────────────────────────
 
 class WebBridgeNode(Node):
     """
-    Subscribes to SLAM topics and feeds the FastAPI state object.
+    Subscribes to SLAM topics and POSTs data to the backend API.
     Both /merged_map (map_merger_node) and /fused_map (map_fusion_node)
     are accepted so either launch configuration works.
     """
 
     def __init__(self) -> None:
         super().__init__("web_bridge")
+        self._last_map_post: float = 0.0
+        self._lock = threading.Lock()
 
         # Accept data from both merger implementations
         self.create_subscription(OccupancyGrid, "/merged_map", self._map_cb, 10)
@@ -251,16 +120,41 @@ class WebBridgeNode(Node):
             )
 
         self.get_logger().info(
-            "Web Bridge Node started – SLAM data available at http://0.0.0.0:8000"
+            f"Web Bridge Node started – forwarding SLAM data to {BACKEND_URL}"
         )
+        self._check_backend_reachable()
+
+    # ── startup check ────────────────────────────────────────────────────────
+
+    def _check_backend_reachable(self) -> None:
+        """Log whether the backend is reachable at startup."""
+        try:
+            resp = requests.get(f"{BACKEND_URL}/", timeout=3.0)
+            self.get_logger().info(
+                f"Backend reachable at {BACKEND_URL}  (status {resp.status_code})"
+            )
+        except requests.exceptions.RequestException as exc:
+            self.get_logger().error(
+                f"[BRIDGE] Cannot reach backend at {BACKEND_URL}: {exc}\n"
+                f"  If the backend runs on Windows and this node is in WSL2,\n"
+                f"  set the MANTIS_BACKEND_URL env var to the Windows host IP:\n"
+                f"    export MANTIS_BACKEND_URL=http://<windows-host-ip>:8000\n"
+                f"  (find it with: ip route show | grep default | awk '{{print $3}}')"
+            )
 
     # ── map callback ─────────────────────────────────────────────────────────
 
     def _map_cb(self, msg: OccupancyGrid) -> None:
         """
-        Convert a 2-D OccupancyGrid into the list[{x,y,z,confidence}] format
-        that SlamMap.tsx renders as a Three.js point cloud.
+        Convert OccupancyGrid → point cloud and POST to /api/map/batch.
+        Throttled to MAP_THROTTLE_SEC to avoid overloading the backend.
         """
+        now = time.monotonic()
+        with self._lock:
+            if now - self._last_map_post < MAP_THROTTLE_SEC:
+                return
+            self._last_map_post = now
+
         width      = msg.info.width
         height     = msg.info.height
         resolution = msg.info.resolution
@@ -270,8 +164,7 @@ class WebBridgeNode(Node):
         data = np.array(msg.data, dtype=np.int8).reshape((height, width))
 
         points: List[dict] = []
-        # Sample every 2nd cell: enough detail, half the payload
-        step = 2
+        step = 2  # sample every 2nd cell for performance
 
         for ry in range(0, height, step):
             for rx in range(0, width, step):
@@ -294,23 +187,32 @@ class WebBridgeNode(Node):
                         }
                     )
 
-        with _state.lock:
-            _state.map_points = points
-            _state.map_version += 1
-            new_version = _state.map_version
+        if not points:
+            return
 
-        self.get_logger().info(
-            f"Map updated: {len(points)} points (v{new_version})",
-            throttle_duration_sec=5.0,
-        )
+        try:
+            requests.post(
+                f"{BACKEND_URL}/api/map/batch",
+                json=points,
+                timeout=2.0,
+            )
+            self.get_logger().info(
+                f"Map forwarded: {len(points)} points",
+                throttle_duration_sec=5.0,
+            )
+        except requests.exceptions.RequestException as exc:
+            self.get_logger().warn(
+                f"Map POST failed: {exc}",
+                throttle_duration_sec=5.0,
+            )
 
     # ── odometry callback ────────────────────────────────────────────────────
 
     def _odom_cb(self, msg: Odometry, robot_name: str) -> None:
         """
-        Extract pose from odometry and push it to every connected WebSocket
-        client as both MULTI_ROBOT_POSES (multi-robot) and a legacy
-        ROBOT_POSE message (backwards-compatible with the current frontend).
+        Extract pose from odometry and POST to /api/robot/telemetry.
+        The backend stores all robot poses and broadcasts MULTI_ROBOT_POSES
+        to every connected WebSocket client.
         """
         x   = msg.pose.pose.position.x
         y   = msg.pose.pose.position.y
@@ -318,68 +220,29 @@ class WebBridgeNode(Node):
         qw  = msg.pose.pose.orientation.w
         yaw = math.atan2(2.0 * (qw * qz), 1.0 - 2.0 * (qz * qz))
 
-        pose = {
-            "id":     robot_name,
-            "color":  ROBOT_COLORS.get(robot_name, "orange"),
-            "x":      round(x, 3),
-            "z":      round(y, 3),   # ROS y → Three.js z
-            "angle":  round(yaw, 4),
-            "status": "MAPPING",
+        payload = {
+            "robot_id": robot_name,
+            "color":    ROBOT_COLORS.get(robot_name, "orange"),
+            "x":        round(x, 3),
+            "z":        round(y, 3),   # ROS y → Three.js z
+            "angle":    round(yaw, 4),
+            "status":   "MAPPING",
         }
 
-        with _state.lock:
-            _state.robot_poses[robot_name] = pose
-            all_poses = list(_state.robot_poses.values())
-
-        # Multi-robot message (new)
-        msg_multi = json.dumps({"type": "MULTI_ROBOT_POSES", "robots": all_poses})
-
-        # Single-robot legacy message using robot1 (or first available)
-        primary = next(
-            (p for p in all_poses if p["id"] == "robot1"),
-            all_poses[0] if all_poses else None,
-        )
-        msg_single: Optional[str] = None
-        if primary:
-            msg_single = json.dumps(
-                {
-                    "type":   "ROBOT_POSE",
-                    "x":      primary["x"],
-                    "z":      primary["z"],
-                    "angle":  primary["angle"],
-                    "status": primary["status"],
-                }
+        try:
+            requests.post(
+                f"{BACKEND_URL}/api/robot/telemetry",
+                json=payload,
+                timeout=0.2,
             )
+        except requests.exceptions.RequestException:
+            pass  # backend not reachable yet, skip silently
 
-        for m in filter(None, [msg_multi, msg_single]):
-            _schedule_broadcast(m)
 
-
-# Server bootstrap
-
-def _run_server() -> None:
-    """Run FastAPI/uvicorn in a daemon thread with its own event loop."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    _state.event_loop = loop
-
-    config = uvicorn.Config(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        loop="none",        # we manage the loop ourselves
-        log_level="warning",
-    )
-    server = uvicorn.Server(config)
-    loop.run_until_complete(server.serve())
-
+# ── Entry point ─────────────────────────────────────────────────────────────────
 
 def main(args=None) -> None:
     rclpy.init(args=args)
-
-    server_thread = threading.Thread(target=_run_server, daemon=True, name="uvicorn")
-    server_thread.start()
-
     node = WebBridgeNode()
     try:
         rclpy.spin(node)
