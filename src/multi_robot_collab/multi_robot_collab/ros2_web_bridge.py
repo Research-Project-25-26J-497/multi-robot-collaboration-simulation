@@ -173,7 +173,8 @@ class WebBridgeNode(Node):
                     continue
 
                 ros_x = orig_x + (rx + 0.5) * resolution
-                ros_y = orig_y + (ry + 0.5) * resolution
+                # Flip the y-axis to correct inverted map orientation
+                ros_y = orig_y + (height - ry - 1) * resolution
                 confidence = round(min(1.0, value / 100.0), 2)
 
                 # Three stacked points give each wall cell height in 3-D
